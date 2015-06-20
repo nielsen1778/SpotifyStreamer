@@ -19,6 +19,6 @@
         android:layout_gravity="center_vertical"
         android:textAppearance="?android:attr/textAppearanceLarge"
         android:gravity="center_vertical"
-        android:text="Artist Name" />
+        android:text="@string/artist_name" />
 
 </LinearLayout>

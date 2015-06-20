@@ -172,20 +172,23 @@ public class TopTracksActivityFragment extends Fragment {
             if (params.length == 0) {
                 return null;
             }
+            try {
+                SpotifyApi api = new SpotifyApi();
+                SpotifyService spotify = api.getService();
 
-            SpotifyApi api = new SpotifyApi();
-            SpotifyService spotify = api.getService();
 
+                HashMap<String,Object> queryString = new HashMap<>();
+                queryString.put(SpotifyService.COUNTRY, Locale.getDefault().getCountry());
 
-            HashMap<String,Object> queryString = new HashMap<>();
-            queryString.put(SpotifyService.COUNTRY, Locale.getDefault().getCountry());
+                Tracks results = spotify.getArtistTopTrack(params[0], queryString);
 
-            Tracks results = spotify.getArtistTopTrack(params[0], queryString);
-
-            listOfArtistsTopTenTracks = results.tracks;
-            for(Track element : listOfArtistsTopTenTracks){
-                String name = element.name;
-                Log.d(LOG_TAG, "Name" + name);
+                listOfArtistsTopTenTracks = results.tracks;
+                for(Track element : listOfArtistsTopTenTracks){
+                    String name = element.name;
+                    Log.d(LOG_TAG, "Name" + name);
+                }
+            } catch (Exception e) {
+                Log.e(LOG_TAG, "Exception:" + e.getMessage());
             }
 
             return listOfArtistsTopTenTracks;

@@ -235,18 +235,22 @@ public class MainActivityFragment extends Fragment {
                 return null;
             }
 
-            SpotifyApi api = new SpotifyApi();
-            SpotifyService spotify = api.getService();
+            try {
+                SpotifyApi api = new SpotifyApi();
+                SpotifyService spotify = api.getService();
 
 
-            ArtistsPager results = spotify.searchArtists(params[0]);
+                ArtistsPager results = spotify.searchArtists(params[0]);
 
-            listOfArtists = results.artists.items;
-            for(Artist element : listOfArtists){
-                String name = element.name;
-                Log.d(LOG_TAG, "Name" + name);
+                listOfArtists = results.artists.items;
+                for (Artist element : listOfArtists) {
+                    String name = element.name;
+                    Log.d(LOG_TAG, "Name" + name);
+                }
+
+            } catch (Exception e) {
+                Log.e(LOG_TAG, "Exception:" + e.getMessage());
             }
-
 
             if (listOfArtists.size() > 0) {
                 return listOfArtists;
