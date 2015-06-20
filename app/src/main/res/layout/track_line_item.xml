@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical" >
+
+    <ImageView
+        android:id="@+id/ivAlbumPhoto"
+        android:layout_width="@dimen/artist_album_image_wh"
+        android:layout_height="@dimen/artist_album_image_wh"
+        android:layout_margin="@dimen/artist_album_image_margin"
+        android:src="@mipmap/ic_launcher" />
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tvAlbum"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceLarge"
+            android:text="Album Name" />
+
+        <TextView
+            android:id="@+id/tvTrackName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:text="Track Name" />
+
+
+    </LinearLayout>
+
+
+</LinearLayout>
