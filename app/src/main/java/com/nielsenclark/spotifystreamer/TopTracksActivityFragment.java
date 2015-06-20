@@ -1,5 +1,8 @@
 package com.nielsenclark.spotifystreamer;
 
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.DialogInterface;
 import android.os.AsyncTask;
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
@@ -46,7 +49,22 @@ public class TopTracksActivityFragment extends Fragment {
     private Artist artist;
     String spotifyID;
 
+    // flag for Internet connection status
+    Boolean isInternetPresent = false;
+
+    // Connection detector class
+    ConnectionDetector cd;
+
     public TopTracksActivityFragment() {
+
+    }
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // creating connection detector class instance
+        cd = new ConnectionDetector(getActivity());
+
     }
 
     @Override
@@ -83,13 +101,13 @@ public class TopTracksActivityFragment extends Fragment {
                 if (child != null && mGestureDetector.onTouchEvent(motionEvent)) {
 
 
-                //    String spotifyID = listOfArtists.get(recyclerView.getChildPosition(child)).id;
+                    //    String spotifyID = listOfArtists.get(recyclerView.getChildPosition(child)).id;
 
-                //    Toast.makeText(getActivity(), "The Item Clicked is: " + recyclerView.getChildPosition(child), Toast.LENGTH_SHORT).show();
+                    //    Toast.makeText(getActivity(), "The Item Clicked is: " + recyclerView.getChildPosition(child), Toast.LENGTH_SHORT).show();
 
-                //    Intent playerIntent = new Intent(getActivity(), PlayerActivity.class)
-                //            .putExtra("SpotifyID", spotifyID);
-                //    getActivity().startActivity(playerIntent);
+                    //    Intent playerIntent = new Intent(getActivity(), PlayerActivity.class)
+                    //            .putExtra("SpotifyID", spotifyID);
+                    //    getActivity().startActivity(playerIntent);
 
                     return true;
 
@@ -123,14 +141,18 @@ public class TopTracksActivityFragment extends Fragment {
         if (savedInstanceState != null) {
 
             spotifyID = savedInstanceState.getString("SpotifyID");
-            FetchTracksTask tracksTask = new FetchTracksTask();
-            tracksTask.execute(spotifyID);
+            if (isNetworkAvailable()) {
+                FetchTracksTask tracksTask = new FetchTracksTask();
+                tracksTask.execute(spotifyID);
+            }
         }
     }
 
     private void updateTracks() {
-        FetchTracksTask tracksTask = new FetchTracksTask();
-        tracksTask.execute(spotifyID);
+        if (isNetworkAvailable()) {
+            FetchTracksTask tracksTask = new FetchTracksTask();
+            tracksTask.execute(spotifyID);
+        }
     }
 
     @Override
@@ -261,6 +283,47 @@ public class TopTracksActivityFragment extends Fragment {
 
         }
 
+    }
+
+    private boolean isNetworkAvailable() {
+
+        // get Internet status
+        isInternetPresent = cd.isConnectingToInternet();
+
+        // check for Internet status
+        if (isInternetPresent) {
+            return true;
+        } else {
+            // Internet connection is not present
+            // Ask user to connect to Internet
+            showAlertDialog(getActivity(), "No Internet Connection",
+                    "You don't have internet connection.  Please try again when connection resumes.", false);
+            return false;
+        }
+
+    }
+
+
+    public void showAlertDialog(Context context, String title, String message, Boolean status) {
+        AlertDialog alertDialog = new AlertDialog.Builder(context).create();
+
+        // Setting Dialog Title
+        alertDialog.setTitle(title);
+
+        // Setting Dialog Message
+        alertDialog.setMessage(message);
+
+        // Setting alert dialog icon
+//        alertDialog.setIcon((status) ? R.drawable.success : R.drawable.fail);
+
+        // Setting OK Button
+        alertDialog.setButton("OK", new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int which) {
+            }
+        });
+
+        // Showing Alert Message
+        alertDialog.show();
     }
 
 }
