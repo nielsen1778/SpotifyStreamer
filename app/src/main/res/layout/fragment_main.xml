@@ -21,7 +21,9 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@+id/etArtistSearch"
-        android:scrollbars="vertical" />
+        android:scrollbars="vertical"
+        style="@style/ArtistRecyclerViewStyle"
+        android:clickable="true"/>
 
 
 </RelativeLayout>

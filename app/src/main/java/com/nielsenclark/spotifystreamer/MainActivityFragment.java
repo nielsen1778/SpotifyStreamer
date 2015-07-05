@@ -3,19 +3,18 @@ package com.nielsenclark.spotifystreamer;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.Configuration;
 import android.os.AsyncTask;
+import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
-import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
 import android.view.GestureDetector;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -48,6 +47,8 @@ public class MainActivityFragment extends Fragment {
     private RecyclerView rvArtists;
     private RecyclerView.Adapter mArtistsAdapter;
     private RecyclerView.LayoutManager mLayoutManager;
+    private int mPosition = RecyclerView.NO_POSITION;
+    private static final String SELECTED_KEY = "selected_position";
 
     private String currentArtist;
 
@@ -60,6 +61,16 @@ public class MainActivityFragment extends Fragment {
 
 
     public MainActivityFragment() {
+
+    }
+
+    // callback for notifying container of events
+    ArtistEventCallback mContainerCallback;
+
+    // containing Activity must implement this interface
+    public interface ArtistEventCallback {
+
+        public void onArtistSelected(String spotifyID);
 
     }
 
@@ -108,7 +119,7 @@ public class MainActivityFragment extends Fragment {
                     SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
                     SharedPreferences.Editor editor = prefs.edit();
                     editor.putString(getString(R.string.pref_last_artist_search_key), s.toString());
-                    editor.commit();
+                    editor.apply();
 
                 } else if (count == 0) {
                     Toast.makeText(getActivity(), "Enter to search for an artist. ", Toast.LENGTH_SHORT).show();
@@ -117,12 +128,6 @@ public class MainActivityFragment extends Fragment {
 
             @Override
             public void afterTextChanged(Editable s) {
-                /*
-                SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
-                SharedPreferences.Editor editor = prefs.edit();
-                editor.putString(getString(R.string.pref_last_artist_search_key), s.toString());
-                editor.commit();
-                */
             }
         });
         etArtistSearch.setOnClickListener(new View.OnClickListener() {
@@ -137,6 +142,7 @@ public class MainActivityFragment extends Fragment {
 
         mLayoutManager = new LinearLayoutManager(getActivity());
         rvArtists.setLayoutManager(mLayoutManager);
+        rvArtists.setHasFixedSize(true);
 
         mArtistsAdapter = new MyAdapter(listOfArtists);
         rvArtists.setAdapter(mArtistsAdapter);
@@ -162,9 +168,12 @@ public class MainActivityFragment extends Fragment {
 
                     String spotifyID = listOfArtists.get(recyclerView.getChildPosition(child)).id;
 
-                    Intent topTenTracks = new Intent(getActivity(), TopTracksActivity.class)
-                            .putExtra("SpotifyID", spotifyID);
-                    getActivity().startActivity(topTenTracks);
+                    if (spotifyID != null && !spotifyID.isEmpty()) {
+                        ((ArtistEventCallback) getActivity())
+                                .onArtistSelected(spotifyID);
+                    }
+                    mPosition = recyclerView.getChildPosition(child);
+
 
                     return true;
 
@@ -180,6 +189,11 @@ public class MainActivityFragment extends Fragment {
         });
 
 
+        if (savedInstanceState != null && savedInstanceState.containsKey(SELECTED_KEY)) {
+            // The listview probably hasn't even been populated yet.  Actually perform the
+            // swapout in onLoadFinished.
+            mPosition = savedInstanceState.getInt(SELECTED_KEY);
+        }
 
 
         return  rootView;
@@ -191,6 +205,13 @@ public class MainActivityFragment extends Fragment {
     @Override
     public void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
+
+        // When tablets rotate, the currently selected list item needs to be saved.
+        // When no item is selected, mPosition will be set to Listview.INVALID_POSITION,
+        // so check for that before storing.
+        if (mPosition != RecyclerView.NO_POSITION) {
+            outState.putInt(SELECTED_KEY, mPosition);
+        }
 
         outState.putString("CurrentArtist", currentArtist);
 
@@ -267,6 +288,14 @@ public class MainActivityFragment extends Fragment {
             if (result != null) {
                 mArtistsAdapter = new MyAdapter(listOfArtists);
                 rvArtists.setAdapter(mArtistsAdapter);
+
+                if (mPosition != RecyclerView.NO_POSITION) {
+                    // If we don't need to restart the loader, and there's a desired position to restore
+                    // to, do so now.
+                    rvArtists.smoothScrollToPosition(mPosition);
+                }
+
+
             } else {
                 Toast.makeText(getActivity(), "Artist not found. ", Toast.LENGTH_SHORT).show();
 
@@ -289,6 +318,47 @@ public class MainActivityFragment extends Fragment {
             this.artists = artists;
         }
 
+        private int selectedItem = 0;
+
+        @Override
+        public void onAttachedToRecyclerView(final RecyclerView recyclerView) {
+            super.onAttachedToRecyclerView(recyclerView);
+
+            // Handle key up and key down and attempt to move selection
+            recyclerView.setOnKeyListener(new View.OnKeyListener() {
+                @Override
+                public boolean onKey(View v, int keyCode, KeyEvent event) {
+                    RecyclerView.LayoutManager lm = recyclerView.getLayoutManager();
+
+                    // Return false if scrolled to the bounds and allow focus to move off the list
+                    if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                        if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                            return tryMoveSelection(lm, 1);
+                        } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                            return tryMoveSelection(lm, -1);
+                        }
+                    }
+
+                    return false;
+                }
+            });
+        }
+
+        private boolean tryMoveSelection(RecyclerView.LayoutManager lm, int direction) {
+            int nextSelectItem = selectedItem + direction;
+
+            // If still within valid bounds, move the selection, notify to redraw, and scroll
+            if (nextSelectItem >= 0 && nextSelectItem < getItemCount()) {
+                notifyItemChanged(selectedItem);
+                selectedItem = nextSelectItem;
+                notifyItemChanged(selectedItem);
+                lm.scrollToPosition(selectedItem);
+                return true;
+            }
+
+            return false;
+        }
+
 
         public class ViewHolder extends RecyclerView.ViewHolder {
 
@@ -297,20 +367,24 @@ public class MainActivityFragment extends Fragment {
 
             public ViewHolder(View v) {
                 super(v);
+
                 ivArtistPhoto = (ImageView) v.findViewById(R.id.ivArtistPhoto);
                 tvArtistName = (TextView) v.findViewById(R.id.tvArtistName);
+
+
+
+                // Handle item click and set the selection
+                itemView.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        // Redraw the old selection and the new
+                        notifyItemChanged(selectedItem);
+                        selectedItem = rvArtists.getChildPosition(v);
+                        notifyItemChanged(selectedItem);
+                    }
+                });
+
             }
-        }
-
-        public void add(int position, Artist artist) {
-            listOfArtists.add(position, artist);
-            notifyItemInserted(position);
-        }
-
-        public void remove(Artist artist) {
-            int position = listOfArtists.indexOf(artist);
-            listOfArtists.remove(position);
-            notifyItemRemoved(position);
         }
 
 
@@ -325,6 +399,11 @@ public class MainActivityFragment extends Fragment {
 
         @Override
         public void onBindViewHolder(ViewHolder holder, int position) {
+
+
+            // Set selected state; use a state list drawable to style the view
+            holder.itemView.setSelected(selectedItem == position);
+
 
             Artist atemp = listOfArtists.get(position);
             if (atemp != null) {

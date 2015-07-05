@@ -7,5 +7,16 @@
     <string name="pref_last_artist_search_default">Rihanna</string>
     <string name="track_name">Track Name</string>
     <string name="artist_name">Artist Name</string>
+    <string name="artist">Artist</string>
+    <string name="album">Album</string>
+    <string name="song">Song</string>
+    <string name="duration_start">0.00</string>
+    <string name="duration_end">1.00</string>
+    <string name="content_desc_artist_photo">Artist Photo</string>
+    <string name="content_desc_album_photo">Album Photo</string>
+    <string name="content_desc_album_art">Album Art</string>
+    <string name="content_desc_previous_track">Previous Track</string>
+    <string name="content_desc_play_pause">Play Pause</string>
+    <string name="content_desc_next_track">Next Track</string>
 
 </resources>

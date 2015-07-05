@@ -2,14 +2,17 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:gravity="center_vertical">
+    android:gravity="center_vertical"
+    android:background="@drawable/touch_selector"
+    android:clickable="true">
 
     <ImageView
         android:id="@+id/ivArtistPhoto"
         android:layout_width="@dimen/artist_album_image_wh"
         android:layout_height="@dimen/artist_album_image_wh"
         android:layout_margin="@dimen/artist_album_image_margin"
-        android:src="@mipmap/ic_launcher" />
+        android:src="@mipmap/ic_launcher"
+        android:contentDescription="@string/content_desc_artist_photo"/>
 
     <TextView
         android:id="@+id/tvArtistName"

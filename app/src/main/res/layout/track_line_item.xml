@@ -10,7 +10,9 @@
         android:layout_width="@dimen/artist_album_image_wh"
         android:layout_height="@dimen/artist_album_image_wh"
         android:layout_margin="@dimen/artist_album_image_margin"
-        android:src="@mipmap/ic_launcher" />
+        android:src="@mipmap/ic_launcher"
+        android:contentDescription="@string/content_desc_album_photo"
+        android:clickable="true" />
 
     <LinearLayout
         android:orientation="vertical"

@@ -1,11 +1,9 @@
 package com.nielsenclark.spotifystreamer;
 
-import android.app.AlertDialog;
-import android.content.Context;
-import android.content.DialogInterface;
-import android.os.AsyncTask;
-import android.support.v4.app.Fragment;
 import android.os.Bundle;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentTransaction;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
@@ -20,16 +18,11 @@ import android.widget.Toast;
 
 import com.squareup.picasso.Picasso;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 
-import kaaes.spotify.webapi.android.SpotifyApi;
-import kaaes.spotify.webapi.android.SpotifyService;
 import kaaes.spotify.webapi.android.models.Artist;
 import kaaes.spotify.webapi.android.models.Image;
 import kaaes.spotify.webapi.android.models.Track;
-import kaaes.spotify.webapi.android.models.Tracks;
 
 
 /**
@@ -47,13 +40,11 @@ public class TopTracksActivityFragment extends Fragment {
     private RecyclerView.LayoutManager mLayoutManager;
 
     private Artist artist;
-    String spotifyID;
+    public static String spotifyID;
 
-    // flag for Internet connection status
-    Boolean isInternetPresent = false;
 
-    // Connection detector class
-    ConnectionDetector cd;
+
+    boolean mIsLargeLayout;
 
     public TopTracksActivityFragment() {
 
@@ -62,8 +53,8 @@ public class TopTracksActivityFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // creating connection detector class instance
-        cd = new ConnectionDetector(getActivity());
+
+        mIsLargeLayout = getResources().getBoolean(R.bool.large_layout);
 
     }
 
@@ -72,7 +63,11 @@ public class TopTracksActivityFragment extends Fragment {
                              Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_top_tracks, container, false);
 
-        spotifyID = getActivity().getIntent().getExtras().getString("SpotifyID");
+        Bundle arguments = getArguments();
+        if (arguments != null) {
+            spotifyID = arguments.getString("SpotifyID");
+        }
+
 
 
         rvArtistsTopTenTracks = (RecyclerView) rootView.findViewById(R.id.rvArtistsTopTenTracks);
@@ -109,6 +104,10 @@ public class TopTracksActivityFragment extends Fragment {
                     //            .putExtra("SpotifyID", spotifyID);
                     //    getActivity().startActivity(playerIntent);
 
+                    int mPosition = recyclerView.getChildPosition(child);
+
+                    showDialog(mPosition);
+
                     return true;
 
                 }
@@ -121,6 +120,7 @@ public class TopTracksActivityFragment extends Fragment {
 
             }
         });
+
 
 
         return  rootView;
@@ -139,78 +139,73 @@ public class TopTracksActivityFragment extends Fragment {
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
         if (savedInstanceState != null) {
-
+/*
             spotifyID = savedInstanceState.getString("SpotifyID");
             if (isNetworkAvailable()) {
-                FetchTracksTask tracksTask = new FetchTracksTask();
-                tracksTask.execute(spotifyID);
+                if (!spotifyID.isEmpty()) {
+                    FetchTracksTask tracksTask = new FetchTracksTask();
+                    tracksTask.execute(spotifyID);
+                }
             }
+            */
+
         }
     }
 
-    private void updateTracks() {
+    void onArtistChanged(String aSpotifyID) {
+        /*
         if (isNetworkAvailable()) {
-            FetchTracksTask tracksTask = new FetchTracksTask();
-            tracksTask.execute(spotifyID);
+            if (!aSpotifyID.isEmpty()) {
+                FetchTracksTask tracksTask = new FetchTracksTask();
+                tracksTask.execute(aSpotifyID);
+            }
         }
+
+        */
+    }
+
+
+    private void updateTracks() {
+
+        String className = getActivity().getClass().getSimpleName();
+
+        if (className != null) {
+            if (!className.isEmpty()) {
+
+
+
+                if (className.equals("TopTracksActivity")) {
+                    listOfArtistsTopTenTracks = ((TopTracksActivity) getActivity()).listOfArtistsTopTenTracks;
+                } else if (className.equals("MainActivity")) { // if (getActivity().getClass().getSimpleName() == "MainActivity") {
+                    listOfArtistsTopTenTracks = ((MainActivity) getActivity()).listOfArtistsTopTenTracks;
+                }
+
+
+                if (listOfArtistsTopTenTracks != null) {
+                    mArtistsTopTenTracksAdapter = new MyAdapter(listOfArtistsTopTenTracks);
+                    rvArtistsTopTenTracks.setAdapter(mArtistsTopTenTracksAdapter);
+                } else {
+                    Toast.makeText(getActivity(), "Tracks not found. ", Toast.LENGTH_SHORT).show();
+
+                    if (listOfArtistsTopTenTracks != null) {
+                        listOfArtistsTopTenTracks.clear();
+                        mArtistsTopTenTracksAdapter = new MyAdapter(listOfArtistsTopTenTracks);
+                        rvArtistsTopTenTracks.setAdapter(mArtistsTopTenTracksAdapter);
+                    }
+
+                }
+
+
+            }
+        }
+
+
     }
 
     @Override
     public void onStart() {
         super.onStart();
         updateTracks();
-    }
-
-    public class FetchTracksTask extends AsyncTask<String, Void, List<Track>> {
-
-        private final String LOG_TAG = FetchTracksTask .class.getSimpleName();
-
-
-        @Override
-        protected List<Track> doInBackground(String... params) {
-
-            if (params.length == 0) {
-                return null;
-            }
-            try {
-                SpotifyApi api = new SpotifyApi();
-                SpotifyService spotify = api.getService();
-
-
-                HashMap<String,Object> queryString = new HashMap<>();
-                queryString.put(SpotifyService.COUNTRY, Locale.getDefault().getCountry());
-
-                Tracks results = spotify.getArtistTopTrack(params[0], queryString);
-
-                listOfArtistsTopTenTracks = results.tracks;
-                for(Track element : listOfArtistsTopTenTracks){
-                    String name = element.name;
-                    Log.d(LOG_TAG, "Name" + name);
-                }
-            } catch (Exception e) {
-                Log.e(LOG_TAG, "Exception:" + e.getMessage());
-            }
-
-            return listOfArtistsTopTenTracks;
-        }
-
-        @Override
-        protected void onPostExecute(List<Track>  result) {
-            if (result != null) {
-                mArtistsTopTenTracksAdapter = new MyAdapter(listOfArtistsTopTenTracks);
-                rvArtistsTopTenTracks.setAdapter(mArtistsTopTenTracksAdapter);
-            } else {
-                Toast.makeText(getActivity(), "Tracks not found. ", Toast.LENGTH_SHORT).show();
-
-                listOfArtistsTopTenTracks.clear();
-                mArtistsTopTenTracksAdapter = new MyAdapter(listOfArtistsTopTenTracks);
-                rvArtistsTopTenTracks.setAdapter(mArtistsTopTenTracksAdapter);
-
-            }
-
-        }
-
-
     }
 
     public class MyAdapter extends RecyclerView.Adapter<MyAdapter.ViewHolder> {
@@ -288,45 +283,50 @@ public class TopTracksActivityFragment extends Fragment {
 
     }
 
-    private boolean isNetworkAvailable() {
+    public void showDialog(int position) {
+        FragmentManager fragmentManager = getActivity().getSupportFragmentManager();
+        PlayerDialogFragment newFragment = new PlayerDialogFragment();
 
-        // get Internet status
-        isInternetPresent = cd.isConnectingToInternet();
 
-        // check for Internet status
-        if (isInternetPresent) {
-            return true;
+        Bundle bundles = new Bundle();
+        Track aTrack = listOfArtistsTopTenTracks.get(position);
+
+
+
+// ensure your object has not null
+        if (aTrack != null) {
+            bundles.putString("ArtistName", aTrack.artists.get(0).name);
+            bundles.putString("AlbumName", aTrack.album.name);
+            bundles.putString("TrackName", aTrack.name);
+
+            Log.e("aTrack", "is valid");
         } else {
-            // Internet connection is not present
-            // Ask user to connect to Internet
-            showAlertDialog(getActivity(), "No Internet Connection",
-                    "You don't have internet connection.  Please try again when connection resumes.", false);
-            return false;
+            Log.e("aTrack", "is null");
         }
+        newFragment.setArguments(bundles);
 
+
+
+        if (mIsLargeLayout) {
+            // The device is using a large layout, so show the fragment as a dialog
+            newFragment.show(fragmentManager, "dialog");
+            newFragment.listOfTopTenTracks = listOfArtistsTopTenTracks;
+            newFragment.position = position;
+        } else {
+            // The device is smaller, so show the fragment fullscreen
+            FragmentTransaction transaction = fragmentManager.beginTransaction();
+            // For a little polish, specify a transition animation
+            transaction.setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN);
+            // To make it fullscreen, use the 'content' root view as the container
+            // for the fragment, which is always the root view for the activity
+            transaction.add(android.R.id.content, newFragment)
+                    .addToBackStack(null).commit();
+
+
+            newFragment.listOfTopTenTracks = listOfArtistsTopTenTracks;
+            newFragment.position = position;
+        }
     }
 
-
-    public void showAlertDialog(Context context, String title, String message, Boolean status) {
-        AlertDialog alertDialog = new AlertDialog.Builder(context).create();
-
-        // Setting Dialog Title
-        alertDialog.setTitle(title);
-
-        // Setting Dialog Message
-        alertDialog.setMessage(message);
-
-        // Setting alert dialog icon
-//        alertDialog.setIcon((status) ? R.drawable.success : R.drawable.fail);
-
-        // Setting OK Button
-        alertDialog.setButton("OK", new DialogInterface.OnClickListener() {
-            public void onClick(DialogInterface dialog, int which) {
-            }
-        });
-
-        // Showing Alert Message
-        alertDialog.show();
-    }
 
 }
