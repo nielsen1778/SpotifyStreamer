@@ -51,6 +51,7 @@ public class MainActivityFragment extends Fragment {
     private static final String SELECTED_KEY = "selected_position";
 
     private String currentArtist;
+    private String spotifyID;
 
 
     // flag for Internet connection status
@@ -166,7 +167,7 @@ public class MainActivityFragment extends Fragment {
                 if (child != null && mGestureDetector.onTouchEvent(motionEvent)) {
 
 
-                    String spotifyID = listOfArtists.get(recyclerView.getChildPosition(child)).id;
+                    spotifyID = listOfArtists.get(recyclerView.getChildPosition(child)).id;
 
                     if (spotifyID != null && !spotifyID.isEmpty()) {
                         ((ArtistEventCallback) getActivity())
@@ -200,33 +201,41 @@ public class MainActivityFragment extends Fragment {
 
     }
 
-
-
     @Override
     public void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
 
         // When tablets rotate, the currently selected list item needs to be saved.
-        // When no item is selected, mPosition will be set to Listview.INVALID_POSITION,
+        // When no item is selected, mPosition will be set to RecyclerView.NO_POSITION,
         // so check for that before storing.
         if (mPosition != RecyclerView.NO_POSITION) {
             outState.putInt(SELECTED_KEY, mPosition);
         }
 
         outState.putString("CurrentArtist", currentArtist);
+        outState.putString("SpotifyID", spotifyID);
 
     }
 
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
+
         if (savedInstanceState != null) {
 
             currentArtist = savedInstanceState.getString("CurrentArtist");
             etArtistSearch.setText(currentArtist);
-            //FetchArtistsTask artistsTask = new FetchArtistsTask();
-            //artistsTask.execute(currentArtist);
+
+            mPosition = savedInstanceState.getInt(SELECTED_KEY);
+            spotifyID = savedInstanceState.getString("SpotifyID");
+
+            if (spotifyID != null && !spotifyID.isEmpty()) {
+                ((ArtistEventCallback) getActivity())
+                        .onArtistSelected(spotifyID);
+            }
+
         }
+
     }
 
     private void updateArtists() {

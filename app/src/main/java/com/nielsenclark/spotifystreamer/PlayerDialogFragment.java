@@ -2,12 +2,11 @@ package com.nielsenclark.spotifystreamer;
 
 
 import android.app.Dialog;
-import android.media.MediaPlayer;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.v4.app.DialogFragment;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -24,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 import kaaes.spotify.webapi.android.models.Image;
 import kaaes.spotify.webapi.android.models.Track;
 
-public class PlayerDialogFragment extends DialogFragment {
+public class PlayerDialogFragment extends DialogFragment{
 
 
     TextView tvPlayerArtist;
@@ -39,9 +38,14 @@ public class PlayerDialogFragment extends DialogFragment {
 
     public List<Track> listOfTopTenTracks;
     public int position;
+    public int curProgress = 0;
+
+    private MusicService musicSrv;
+    private Intent playIntent;
+    private boolean musicBound=false;
 
 
-    private MediaPlayer mediaPlayer;
+    //    private MediaPlayer mediaPlayer;
     private int mediaFileLengthInMilliseconds; // this value contains the song duration in milliseconds. Look at getDuration() method in MediaPlayer class
 
     private final Handler handler = new Handler();
@@ -49,9 +53,12 @@ public class PlayerDialogFragment extends DialogFragment {
     String artistName;
     String albumName;
     String trackName;
-    String trackURLString = " http://www.hrupin.com/wp-content/uploads/mp3/testsong_20_sec.mp3";
+    String trackURLString = "";
+    int durationMS = 0;
     String trackDuration = "0.00";
+    String thumbnailUrl;
 
+    Boolean isPlaying = false;
 
     /** The system calls this to get the DialogFragment's layout, regardless
      of whether it's being displayed as a dialog or an embedded fragment. */
@@ -75,32 +82,41 @@ public class PlayerDialogFragment extends DialogFragment {
         tvDurationEnd = (TextView) rootView.findViewById(R.id.tvDurationEnd);
         tvDurationEnd.setText(trackDuration);
         sbrProgress = (SeekBar) rootView.findViewById(R.id.sbrProgress);
-        sbrProgress.setOnTouchListener(new View.OnTouchListener() {
+        sbrProgress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                /** Seekbar onTouch event handler. Method which seeks MediaPlayer to seekBar primary progress position*/
-                if (mediaPlayer.isPlaying()) {
-                    SeekBar sb = (SeekBar) v;
-                    int playPositionInMillisecconds = (mediaFileLengthInMilliseconds / 100) * sb.getProgress();
-                    mediaPlayer.seekTo(playPositionInMillisecconds);
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+
+                if (fromUser) {
+                    curProgress = progress;
+                    seekTo(progress);
                 }
-                return false;
+
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
             }
         });
 
-//        PlayTrack();
 
         ibtnPrevious = (ImageButton) rootView.findViewById(R.id.ibtnPrevious);
         ibtnPrevious.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                stopTrack();
                 if (position > 0) {
                     position = position - 1;
                 } else {
                     position = listOfTopTenTracks.size() - 1;
                 }
                 getTrackDetails();
-                PlayTrack();
+                playTrack();
             }
         });
 
@@ -108,13 +124,14 @@ public class PlayerDialogFragment extends DialogFragment {
         ibtnNext.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                stopTrack();
                 if (position == listOfTopTenTracks.size() - 1) {
                     position = 0;
                 } else {
                     position = position + 1;
                 }
                 getTrackDetails();
-                PlayTrack();
+                playTrack();
             }
         });
 
@@ -123,54 +140,29 @@ public class PlayerDialogFragment extends DialogFragment {
             @Override
             public void onClick(View v) {
 
-                if(!mediaPlayer.isPlaying()){
-                    if(mediaPlayer!=null) {
-                        mediaPlayer.start();
-                        ibtnPlayPause.setImageResource(R.drawable.ic_pause_black_48dp);
-                    }
-                }else {
-                    if(mediaPlayer!=null) {
-                        mediaPlayer.pause();
-                        ibtnPlayPause.setImageResource(R.drawable.ic_play_arrow_black_48dp);
-                    }
+                if (!isPlaying) {
+                    playTrack();
+                    ibtnPlayPause.setImageResource(R.drawable.ic_pause_black_48dp);
+                } else {
+                    pauseTrack();
+                    ibtnPlayPause.setImageResource(R.drawable.ic_play_arrow_black_48dp);
                 }
 
-
             }
         });
 
-        mediaPlayer = new MediaPlayer();
-        mediaPlayer.setOnBufferingUpdateListener(new MediaPlayer.OnBufferingUpdateListener() {
-            @Override
-            public void onBufferingUpdate(MediaPlayer mp, int percent) {
-                /** Method which updates the SeekBar secondary progress by current song loading from URL position*/
-                sbrProgress.setSecondaryProgress(percent);
-            }
-        });
-        mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-            @Override
-            public void onCompletion(MediaPlayer mp) {
-                /** MediaPlayer onCompletion event handler. Method which calls then song playing is complete*/
-                ibtnPlayPause.setImageResource(R.drawable.ic_play_arrow_black_48dp);
-
-                // no repeat or shuffle ON - play next song
-                if(position < (listOfTopTenTracks.size() - 1)){
-                    getTrackDetails();
-                    PlayTrack();
-                    position = position + 1;
-                }else{
-                    // play first song
-                    getTrackDetails();
-                    PlayTrack();
-                    position = 0;
-                }
-
-
-            }
-        });
-
+        MusicService.setMainActivity(PlayerDialogFragment.this);
 
         return rootView;
+
+    }
+
+    private void seekTo(int progress) {
+
+        Intent musicIntent = new Intent(getActivity(), MusicService.class);
+        musicIntent.putExtra("Progress", progress);
+        musicIntent.setAction(MusicService.ACTION_PROGRESS);
+        getActivity().startService(musicIntent);
 
     }
 
@@ -192,30 +184,34 @@ public class PlayerDialogFragment extends DialogFragment {
         super.onStart();
 
         getTrackDetails();
-        PlayTrack();
+
+        isPlaying = true;
+        MusicService.setSong(trackURLString, trackName, thumbnailUrl);
+
+        Intent musicIntent = new Intent(getActivity(), MusicService.class);
+        musicIntent.setAction(MusicService.ACTION_PLAY);
+        getActivity().startService(musicIntent);
+
+        ibtnPlayPause.setImageResource(R.drawable.ic_pause_black_48dp);
+
     }
 
-    private void PlayTrack() {
-        /** ImageButton onClick event handler. Method which start/pause mediaplayer playing */
+    private void playTrack() {
+
         try {
-            mediaPlayer.reset();
-            mediaPlayer.setDataSource(trackURLString); // setup song from http://www.hrupin.com/wp-content/uploads/mp3/testsong_20_sec.mp3 URL to mediaplayer data source
-            mediaPlayer.prepare(); // you must call this method after setup the datasource in setDataSource method. After calling prepare() the instance of MediaPlayer starts load data from URL to internal buffer.
-            mediaPlayer.start();
+
+            MusicService.setSong(trackURLString, trackName, thumbnailUrl);
+
+            Intent musicIntent = new Intent(getActivity(), MusicService.class);
+        //    musicIntent.putExtra("Progress", curProgress);
+            musicIntent.setAction(MusicService.ACTION_PLAY);
+            getActivity().startService(musicIntent);
+            isPlaying = true;
 
             sbrProgress.setProgress(0);
-            sbrProgress.setMax(100);
 
             // Changing Button Image to pause image
             ibtnPlayPause.setImageResource(R.drawable.ic_pause_black_48dp);
-
-
-            mediaFileLengthInMilliseconds = mediaPlayer.getDuration(); // gets the song length in milliseconds from URL
-            trackDuration = "" + TimeUnit.MILLISECONDS.toMinutes(mediaFileLengthInMilliseconds) + "." + (TimeUnit.MILLISECONDS.toSeconds(mediaFileLengthInMilliseconds) -
-                    TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(mediaFileLengthInMilliseconds)));
-            tvDurationEnd.setText(trackDuration);
-
-            primarySeekBarProgressUpdater();
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -224,32 +220,66 @@ public class PlayerDialogFragment extends DialogFragment {
 
     }
 
+    private void pauseTrack() {
+        try {
+            Intent musicIntent = new Intent(getActivity(), MusicService.class);
+            musicIntent.setAction(MusicService.ACTION_PAUSE);
+            getActivity().startService(musicIntent);
+            isPlaying = false;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    private void stopTrack() {
+        try {
+            Intent musicIntent = new Intent(getActivity(), MusicService.class);
+            musicIntent.setAction(MusicService.ACTION_STOP);
+            getActivity().startService(musicIntent);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
     private void getTrackDetails() {
 
-        Track aTrack = listOfTopTenTracks.get(position);
+        if (listOfTopTenTracks != null) {
+
+            Track aTrack = listOfTopTenTracks.get(position);
 
 
-        // ensure your object has not null
-        if (aTrack != null) {
+            // ensure your object has not null
+            if (aTrack != null) {
 
-            artistName = aTrack.artists.get(0).name;
-            albumName = aTrack.album.name;
-            trackName = aTrack.name;
-            trackURLString = aTrack.preview_url;
+                artistName = aTrack.artists.get(0).name;
+                albumName = aTrack.album.name;
+                trackName = aTrack.name;
+                trackURLString = aTrack.preview_url;
+                durationMS = (int) aTrack.duration_ms;
 
-            tvPlayerArtist.setText(artistName);
-            tvPlayerAlbum.setText(albumName);
-            List<Image> images = listOfTopTenTracks.get(position).album.images;
+                tvPlayerArtist.setText(artistName);
+                tvPlayerAlbum.setText(albumName);
+                List<Image> images = listOfTopTenTracks.get(position).album.images;
 
-            if (images != null && images.size() > 0) {
-                String thumbnailUrl = listOfTopTenTracks.get(position).album.images.get(0).url;
-                imgAlbumArt.setImageBitmap(null);
-                if (thumbnailUrl != null) {
-                    Picasso.with(getActivity()).load(listOfTopTenTracks.get(position).album.images.get(0).url).into(imgAlbumArt);
+                if (images != null && images.size() > 0) {
+                    thumbnailUrl = listOfTopTenTracks.get(position).album.images.get(0).url;
+                    imgAlbumArt.setImageBitmap(null);
+                    if (thumbnailUrl != null) {
+                        Picasso.with(getActivity()).load(thumbnailUrl).into(imgAlbumArt);
+                    }
                 }
-            }
-            tvPlayerSong.setText(trackName);
+                tvPlayerSong.setText(trackName);
 
+
+                mediaFileLengthInMilliseconds = durationMS; // gets the song length in milliseconds from URL
+                trackDuration = "" + TimeUnit.MILLISECONDS.toMinutes(mediaFileLengthInMilliseconds) + "." + (TimeUnit.MILLISECONDS.toSeconds(mediaFileLengthInMilliseconds) -
+                        TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(mediaFileLengthInMilliseconds)));
+                tvDurationEnd.setText(trackDuration);
+
+
+            }
         }
     }
 
@@ -288,32 +318,24 @@ public class PlayerDialogFragment extends DialogFragment {
         }
     }
 
-    /** Method which updates the SeekBar primary progress by current song playing position*/
-    private void primarySeekBarProgressUpdater() {
-        if (mediaPlayer != null) {
-            sbrProgress.setProgress((int) (((float) mediaPlayer.getCurrentPosition() / mediaFileLengthInMilliseconds) * 100)); // This math construction give a percentage of "was playing"/"song length"
-            if (mediaPlayer.isPlaying()) {
-                Runnable notification = new Runnable() {
-                    public void run() {
-                        primarySeekBarProgressUpdater();
-                    }
-                };
-                handler.postDelayed(notification, 1000);
-            }
-        }
-    }
-
     @Override
     public void onStop() {
         super.onStop();
-        mediaPlayer.stop();
+
+        stopTrack();
+
+    }
+
+    @Override
+    public void onDestroyView() {
+        if (getDialog() != null && getRetainInstance())
+            getDialog().setOnDismissListener(null);
+        super.onDestroyView();
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        mediaPlayer.release();
-        mediaPlayer = null;
     }
 
 }

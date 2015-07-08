@@ -50,23 +50,5 @@ public class FetchTracksTask extends AsyncTask<String, Void, List<Track>> {
         return listTopTenTracks;
     }
 
-    @Override
-    protected void onPostExecute(List<Track>  result) {
-        if (result != null) {
-
-        //    listOfArtistsTopTenTracks = result;
-
-        } else {
-        //    Toast.makeText(TopTracksActivity.this, "Tracks not found. ", Toast.LENGTH_SHORT).show();
-
-       //     if (listOfArtistsTopTenTracks != null) {
-       //         listOfArtistsTopTenTracks.clear();
-
-       //     }
-
-        }
-
-    }
-
 
 }
