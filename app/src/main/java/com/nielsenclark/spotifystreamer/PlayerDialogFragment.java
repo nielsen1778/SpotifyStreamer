@@ -2,7 +2,10 @@ package com.nielsenclark.spotifystreamer;
 
 
 import android.app.Dialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.v4.app.DialogFragment;
@@ -14,6 +17,7 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.squareup.picasso.Picasso;
 
@@ -59,6 +63,24 @@ public class PlayerDialogFragment extends DialogFragment{
     String thumbnailUrl;
 
     Boolean isPlaying = false;
+
+    // Seekbar
+    private int seekMax;
+    private static int songEnded = 0;
+    boolean mBroadcastIsRegistered;
+
+    // --Set up constant ID for broadcast of seekbar position--
+    public static final String BROADCAST_SEEKBAR = "com.nielsenclark.spotifystreamer.sendseekbar";
+    Intent intent;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // --- set up seekbar intent for broadcasting new position to service ---
+        intent = new Intent(BROADCAST_SEEKBAR);
+
+    }
 
     /** The system calls this to get the DialogFragment's layout, regardless
      of whether it's being displayed as a dialog or an embedded fragment. */
@@ -157,6 +179,51 @@ public class PlayerDialogFragment extends DialogFragment{
 
     }
 
+    // -- Broadcast Receiver to update position of seekbar from service --
+    private BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent serviceIntent) {
+            updateUI(serviceIntent);
+        }
+    };
+
+    private void updateUI(Intent serviceIntent) {
+        String counter = serviceIntent.getStringExtra("counter");
+        String mediamax = serviceIntent.getStringExtra("mediamax");
+        String strSongEnded = serviceIntent.getStringExtra("song_ended");
+        int seekProgress = Integer.parseInt(counter);
+        seekMax = Integer.parseInt(mediamax);
+        songEnded = Integer.parseInt(strSongEnded);
+        sbrProgress.setMax(seekMax);
+        sbrProgress.setProgress(seekProgress);
+
+
+        if (songEnded == 1) {
+
+ //           ibtnPlayPause.setImageResource(R.drawable.ic_play_arrow_black_48dp);
+
+            isPlaying = false;
+
+            // no repeat or shuffle ON - play next song
+            if(position < (listOfTopTenTracks.size() - 1)){
+                getTrackDetails();
+                playTrack();
+                position = position + 1;
+            }else{
+                // play first song
+                getTrackDetails();
+                playTrack();
+                position = 0;
+            }
+
+
+        }
+
+
+    }
+
+    // --End of seekbar update code--
+
     private void seekTo(int progress) {
 
         Intent musicIntent = new Intent(getActivity(), MusicService.class);
@@ -184,15 +251,7 @@ public class PlayerDialogFragment extends DialogFragment{
         super.onStart();
 
         getTrackDetails();
-
-        isPlaying = true;
-        MusicService.setSong(trackURLString, trackName, thumbnailUrl);
-
-        Intent musicIntent = new Intent(getActivity(), MusicService.class);
-        musicIntent.setAction(MusicService.ACTION_PLAY);
-        getActivity().startService(musicIntent);
-
-        ibtnPlayPause.setImageResource(R.drawable.ic_pause_black_48dp);
+        playTrack();
 
     }
 
@@ -203,12 +262,16 @@ public class PlayerDialogFragment extends DialogFragment{
             MusicService.setSong(trackURLString, trackName, thumbnailUrl);
 
             Intent musicIntent = new Intent(getActivity(), MusicService.class);
-        //    musicIntent.putExtra("Progress", curProgress);
             musicIntent.setAction(MusicService.ACTION_PLAY);
             getActivity().startService(musicIntent);
             isPlaying = true;
 
-            sbrProgress.setProgress(0);
+
+            // -- Register receiver for seekbar--
+            getActivity().registerReceiver(broadcastReceiver, new IntentFilter(
+                    MusicService.BROADCAST_ACTION));
+            mBroadcastIsRegistered = true;
+
 
             // Changing Button Image to pause image
             ibtnPlayPause.setImageResource(R.drawable.ic_pause_black_48dp);
@@ -324,6 +387,65 @@ public class PlayerDialogFragment extends DialogFragment{
 
         stopTrack();
 
+        // --Unregister broadcastReceiver for seekbar
+        if (mBroadcastIsRegistered) {
+            try {
+                getActivity().unregisterReceiver(broadcastReceiver);
+                mBroadcastIsRegistered = false;
+            } catch (Exception e) {
+                // Log.e(TAG, "Error in Activity", e);
+                // TODO Auto-generated catch block
+
+                e.printStackTrace();
+                Toast.makeText(
+
+                        getActivity().getApplicationContext(),
+
+                        e.getClass().getName() + " " + e.getMessage(),
+
+                        Toast.LENGTH_LONG).show();
+            }
+        }
+
+    }
+
+    @Override
+    public void onPause() {
+
+        // --Unregister broadcastReceiver for seekbar
+        if (mBroadcastIsRegistered) {
+            try {
+                getActivity().unregisterReceiver(broadcastReceiver);
+                mBroadcastIsRegistered = false;
+            } catch (Exception e) {
+                // Log.e(TAG, "Error in Activity", e);
+                // TODO Auto-generated catch block
+
+                e.printStackTrace();
+                Toast.makeText(
+
+                        getActivity().getApplicationContext(),
+
+                        e.getClass().getName() + " " + e.getMessage(),
+
+                        Toast.LENGTH_LONG).show();
+            }
+        }
+
+        super.onPause();
+    }
+
+    @Override
+    public void onResume() {
+
+        // -- Register receiver for seekbar--
+        if (!mBroadcastIsRegistered) {
+            getActivity().registerReceiver(broadcastReceiver, new IntentFilter(
+                    MusicService.BROADCAST_ACTION));
+            mBroadcastIsRegistered = true;
+        }
+
+        super.onResume();
     }
 
     @Override
@@ -336,6 +458,7 @@ public class PlayerDialogFragment extends DialogFragment{
     @Override
     public void onDestroy() {
         super.onDestroy();
+
     }
 
 }

@@ -5,18 +5,19 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.MediaPlayer.OnBufferingUpdateListener;
 import android.os.Bundle;
-import android.os.CountDownTimer;
+import android.os.Handler;
 import android.os.IBinder;
-import android.widget.SeekBar;
 
 import java.io.IOException;
 
-public class MusicService extends Service implements MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener, OnBufferingUpdateListener{
+public class MusicService extends Service implements MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener, OnBufferingUpdateListener, MediaPlayer.OnSeekCompleteListener{
 
 
     public static final String ACTION_PLAY = "PLAY";
@@ -30,6 +31,18 @@ public class MusicService extends Service implements MediaPlayer.OnPreparedListe
     private int mBufferPosition;
     private static String mSongTitle;
     private static String mSongPicUrl;
+
+
+    // Seekbar Processing
+    String sntSeekPos;
+    int intSeekPos;
+    int mediaPosition;
+    int mediaMax;
+    private final Handler handler = new Handler();
+    private static int songEnded;
+    public static final String BROADCAST_ACTION = "com.nielsenclark.spotifystreamer.seekprogress";
+    Intent seekIntent;
+
 
     NotificationManager mNotificationManager;
     Notification mNotification = null;
@@ -61,6 +74,16 @@ public class MusicService extends Service implements MediaPlayer.OnPreparedListe
     public void onCreate() {
         mInstance = this;
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
+        // Setup Intent for seekbar broadcast
+        seekIntent = new Intent (BROADCAST_ACTION);
+
+
+    }
+
+    @Override
+    public void onSeekComplete(MediaPlayer mp) {
+
     }
 
     @Override
@@ -73,7 +96,6 @@ public class MusicService extends Service implements MediaPlayer.OnPreparedListe
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent.getAction().equals(ACTION_PLAY)) {
             processPlayRequest();
-
         } else if (intent.getAction().equals(ACTION_PAUSE)) {
             processPauseRequest();
         } else if (intent.getAction().equals(ACTION_STOP)) {
@@ -91,17 +113,69 @@ public class MusicService extends Service implements MediaPlayer.OnPreparedListe
 
             }
         }
+
+        // Setup seekbar info to activity
+        setupHandler();
+
         return START_STICKY;
     }
 
-    void processPlayRequest() {
+    // ---Send seekbar info to activity----
+    private void setupHandler() {
+        handler.removeCallbacks(sendUpdatesToUI);
+        handler.postDelayed(sendUpdatesToUI, 1000); // 1 second
+    }
 
-        mediaPlayer = new MediaPlayer(); // initialize it here
-        mediaPlayer.setOnPreparedListener(this);
-        mediaPlayer.setOnErrorListener(this);
-        mediaPlayer.setOnBufferingUpdateListener(this);
-        mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-        initMediaPlayer();
+    private Runnable sendUpdatesToUI = new Runnable() {
+        public void run() {
+            // // Log.d(TAG, "entered sendUpdatesToUI");
+
+            LogMediaPosition();
+
+            handler.postDelayed(this, 1000); // 1 seconds
+
+        }
+    };
+
+    private void LogMediaPosition() {
+        // // Log.d(TAG, "entered LogMediaPosition");
+        if (mediaPlayer.isPlaying()) {
+            mediaPosition = mediaPlayer.getCurrentPosition();
+            // if (mediaPosition < 1) {
+            // Toast.makeText(this, "Buffering...", Toast.LENGTH_SHORT).show();
+            // }
+            mediaMax = mediaPlayer.getDuration();
+            //seekIntent.putExtra("time", new Date().toLocaleString());
+            seekIntent.putExtra("counter", String.valueOf(mediaPosition));
+            seekIntent.putExtra("mediamax", String.valueOf(mediaMax));
+            seekIntent.putExtra("song_ended", String.valueOf(songEnded));
+            sendBroadcast(seekIntent);
+        }
+    }
+
+    // --Receive seekbar position if it has been changed by the user in the
+    // activity
+    private BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            updateSeekPos(intent);
+        }
+    };
+
+    // Update seek position from Activity
+    public void updateSeekPos(Intent intent) {
+        int seekPos = intent.getIntExtra("seekpos", 0);
+        if (mediaPlayer.isPlaying()) {
+            handler.removeCallbacks(sendUpdatesToUI);
+            mediaPlayer.seekTo(seekPos);
+            setupHandler();
+        }
+
+    }
+
+    // ---End of seekbar code
+
+    void processPlayRequest() {
 
         if (mState == State.Paused) {
             // If we're paused, just continue playback and restore the 'foreground service' state.
@@ -110,6 +184,20 @@ public class MusicService extends Service implements MediaPlayer.OnPreparedListe
             if (!mediaPlayer.isPlaying()) {
                 mediaPlayer.start();
             }
+        } else {
+
+            if (mediaPlayer == null) {
+                mediaPlayer = new MediaPlayer(); // initialize it here
+                mediaPlayer.setOnPreparedListener(this);
+                mediaPlayer.setOnErrorListener(this);
+                mediaPlayer.setOnBufferingUpdateListener(this);
+                mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                // Setup Listener for seek complete
+                mediaPlayer.setOnSeekCompleteListener(this);
+            }
+
+            initMediaPlayer();
+
         }
 
     }
@@ -119,7 +207,7 @@ public class MusicService extends Service implements MediaPlayer.OnPreparedListe
         if (mState == State.Playing) {
                       // Pause media player and cancel the 'foreground service' state.
             mState = State.Paused;
-             mediaPlayer.pause();
+            mediaPlayer.pause();
             relaxResources(false); // while paused, we always retain the MediaPlayer
              // do not give up audio focus
         }
@@ -139,7 +227,9 @@ public class MusicService extends Service implements MediaPlayer.OnPreparedListe
     }
 
     void processProgressRequest(int progress){
-        mediaPlayer.seekTo(progress);
+        if (mediaPlayer != null) {
+            mediaPlayer.seekTo(progress);
+        }
     }
 
 
@@ -156,16 +246,16 @@ public class MusicService extends Service implements MediaPlayer.OnPreparedListe
     }
 
 
-
     private void initMediaPlayer() {
         try {
+            mediaPlayer.reset();
             mediaPlayer.setDataSource(mUrl);
         } catch (IllegalArgumentException e) {
             // ...
         } catch (IllegalStateException e) {
             // ...
         } catch (IOException e) {
-            // ...
+            // ...21
         }
 
         try {
@@ -201,10 +291,21 @@ public class MusicService extends Service implements MediaPlayer.OnPreparedListe
 
     @Override
     public void onDestroy() {
+        super.onDestroy();
+
+        mState = State.Retrieving;
         if (mediaPlayer != null) {
+            if (mediaPlayer.isPlaying()) {
+                mediaPlayer.stop();
+            }
             mediaPlayer.release();
         }
-        mState = State.Retrieving;
+        // Unregister seekbar receiver
+        unregisterReceiver(broadcastReceiver);
+
+        // Stop the seekbar handler from sending updates to UI
+        handler.removeCallbacks(sendUpdatesToUI);
+
     }
 
     public MediaPlayer getMediaPlayer() {
@@ -221,29 +322,13 @@ public class MusicService extends Service implements MediaPlayer.OnPreparedListe
 
     public void startMusic() {
         if (!mState.equals(State.Preparing) &&!mState.equals(State.Retrieving)) {
+
+
             mediaPlayer.start();
             mState = State.Playing;
             updateNotification(mSongTitle + "(playing)");
 
-           // final TextView tv_test=(TextView)MAIN_ACTIVITY.findViewById(R.id.textview);
-            final SeekBar sbrProgress = (SeekBar) MAIN_ACTIVITY.sbrProgress;
-            sbrProgress.setProgress(0);
-            //sbrProgress.setMax(100);
-            int duration = mediaPlayer.getDuration();
-            sbrProgress.setMax(duration);
-            new CountDownTimer(duration, 250) {
-                public void onTick(long millisUntilFinished) {
-                    if (sbrProgress.getProgress() == mediaPlayer.getDuration()) {
-                        mediaPlayer.reset();
-                        sbrProgress.setProgress(0);
-                    } else {
-                        sbrProgress.setProgress(mediaPlayer.getCurrentPosition());
-                    }
 
-                    //sbrProgress.setProgress(sbrProgress.getProgress() + 250);
-                }
-                public void onFinish() {}
-            }.start();
         }
     }
 
@@ -255,13 +340,21 @@ public class MusicService extends Service implements MediaPlayer.OnPreparedListe
     }
 
     public int getMusicDuration() {
-        // Return current music duration
-        return mediaPlayer.getDuration();
+        if (mediaPlayer != null) {
+            // Return current music duration
+            return mediaPlayer.getDuration();
+        } else {
+            return 0;
+        }
     }
 
     public int getCurrentPosition() {
-        // Return current position
-        return mediaPlayer.getCurrentPosition();
+        if (mediaPlayer != null) {
+            // Return current position
+            return mediaPlayer.getCurrentPosition();
+        } else {
+            return 0;
+        }
     }
 
     public int getBufferPercentage() {

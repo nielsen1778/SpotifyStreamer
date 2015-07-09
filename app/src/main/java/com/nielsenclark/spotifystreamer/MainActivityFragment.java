@@ -60,6 +60,7 @@ public class MainActivityFragment extends Fragment {
     // Connection detector class
     ConnectionDetector cd;
 
+    Boolean firstTime = false;
 
     public MainActivityFragment() {
 
@@ -84,13 +85,15 @@ public class MainActivityFragment extends Fragment {
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+    public View onCreateView(final LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
 
         if (currentArtist == null) {
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
-            currentArtist = prefs.getString(getString(R.string.pref_last_artist_search_key), getString(R.string.pref_last_artist_search_default));
-            //etArtistSearch.setText(currentArtist);
+            currentArtist = prefs.getString(getString(R.string.pref_last_artist_search_key), "");
+            if (currentArtist.equals("")) {
+                firstTime = true;
+            }
         }
 
 
@@ -106,7 +109,7 @@ public class MainActivityFragment extends Fragment {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (count > 3) {
+                if (count > 1) {
                     currentArtist = s.toString();
 
                     Log.d(LOG_TAG, "On Text Changed: " + currentArtist);
@@ -250,7 +253,9 @@ public class MainActivityFragment extends Fragment {
     public void onStart() {
         super.onStart();
         Log.d(LOG_TAG, "On Start");
-        updateArtists();
+        if (!firstTime) {
+            updateArtists();
+        }
     }
 
     public class FetchArtistsTask extends AsyncTask<String, Void, List<Artist>> {
