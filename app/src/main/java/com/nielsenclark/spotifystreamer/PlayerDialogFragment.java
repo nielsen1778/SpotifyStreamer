@@ -21,11 +21,8 @@ import android.widget.Toast;
 
 import com.squareup.picasso.Picasso;
 
-import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
-
-import kaaes.spotify.webapi.android.models.Image;
-import kaaes.spotify.webapi.android.models.Track;
 
 public class PlayerDialogFragment extends DialogFragment{
 
@@ -40,7 +37,8 @@ public class PlayerDialogFragment extends DialogFragment{
     ImageButton ibtnPlayPause;
     ImageButton ibtnNext;
 
-    public List<Track> listOfTopTenTracks;
+    public ArrayList<ArtistTrack> artistTracks;
+
     public int position;
     public int curProgress = 0;
 
@@ -89,9 +87,8 @@ public class PlayerDialogFragment extends DialogFragment{
                              Bundle savedInstanceState) {
 
         Bundle bundle = getArguments();
-        artistName = bundle.getString("ArtistName");
-        albumName = bundle.getString("AlbumName");
-        trackName = bundle.getString("TrackName");
+
+        artistTracks = bundle.getParcelableArrayList("ArtistTracks");
 
         // Inflate the layout to use as dialog or embedded fragment
         View rootView = inflater.inflate(R.layout.dialog_fragment_player, container, false);
@@ -135,7 +132,7 @@ public class PlayerDialogFragment extends DialogFragment{
                 if (position > 0) {
                     position = position - 1;
                 } else {
-                    position = listOfTopTenTracks.size() - 1;
+                    position = artistTracks.size() - 1;
                 }
                 getTrackDetails();
                 playTrack();
@@ -147,7 +144,7 @@ public class PlayerDialogFragment extends DialogFragment{
             @Override
             public void onClick(View v) {
                 stopTrack();
-                if (position == listOfTopTenTracks.size() - 1) {
+                if (position == artistTracks.size() - 1) {
                     position = 0;
                 } else {
                     position = position + 1;
@@ -205,7 +202,7 @@ public class PlayerDialogFragment extends DialogFragment{
             isPlaying = false;
 
             // no repeat or shuffle ON - play next song
-            if(position < (listOfTopTenTracks.size() - 1)){
+            if(position < (artistTracks.size() - 1)){
                 getTrackDetails();
                 playTrack();
                 position = position + 1;
@@ -306,33 +303,31 @@ public class PlayerDialogFragment extends DialogFragment{
 
     }
 
+    // Get all of the inforamtiona and image links for the track selected.
     private void getTrackDetails() {
 
-        if (listOfTopTenTracks != null) {
+        if (artistTracks != null) {
 
-            Track aTrack = listOfTopTenTracks.get(position);
+            ArtistTrack aTrack = artistTracks.get(position);
 
-
-            // ensure your object has not null
+            // ensure aTrack is not null
             if (aTrack != null) {
 
-                artistName = aTrack.artists.get(0).name;
-                albumName = aTrack.album.name;
-                trackName = aTrack.name;
-                trackURLString = aTrack.preview_url;
-                durationMS = (int) aTrack.duration_ms;
+                artistName = aTrack.getArtistName();
+                albumName = aTrack.getAlbumName();
+                trackName = aTrack.getTrackName();
+                trackURLString = aTrack.getTrackPreviewUrl();
+                durationMS = (int) aTrack.getDurationMS();
 
                 tvPlayerArtist.setText(artistName);
                 tvPlayerAlbum.setText(albumName);
-                List<Image> images = listOfTopTenTracks.get(position).album.images;
 
-                if (images != null && images.size() > 0) {
-                    thumbnailUrl = listOfTopTenTracks.get(position).album.images.get(0).url;
-                    imgAlbumArt.setImageBitmap(null);
-                    if (thumbnailUrl != null) {
-                        Picasso.with(getActivity()).load(thumbnailUrl).into(imgAlbumArt);
-                    }
+                String thumbnailUrl = aTrack.getImageLargeUri();
+                imgAlbumArt.setImageBitmap(null);
+                if (thumbnailUrl != null) {
+                    Picasso.with(getActivity()).load(thumbnailUrl).into(imgAlbumArt);
                 }
+
                 tvPlayerSong.setText(trackName);
 
 
@@ -340,7 +335,6 @@ public class PlayerDialogFragment extends DialogFragment{
                 trackDuration = "" + TimeUnit.MILLISECONDS.toMinutes(mediaFileLengthInMilliseconds) + "." + (TimeUnit.MILLISECONDS.toSeconds(mediaFileLengthInMilliseconds) -
                         TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(mediaFileLengthInMilliseconds)));
                 tvDurationEnd.setText(trackDuration);
-
 
             }
         }
@@ -351,32 +345,18 @@ public class PlayerDialogFragment extends DialogFragment{
         super.onSaveInstanceState(outState);
 
         outState.putInt("Position", position);
+        outState.putParcelableArrayList("ArtistTracks", artistTracks);
 
     }
 
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
+
         if (savedInstanceState != null) {
 
+            artistTracks = savedInstanceState.getParcelableArrayList("ArtistTracks");
             position = savedInstanceState.getInt("Position");
-
-            if (position > -1) {
-
-                String className = getActivity().getClass().getSimpleName();
-
-                if (className != null) {
-                    if (!className.isEmpty()) {
-
-                        if (className.equals("TopTracksActivity")) {
-                            listOfTopTenTracks = ((TopTracksActivity) getActivity()).listOfArtistsTopTenTracks;
-                        } else if (className.equals("MainActivity")) { // if (getActivity().getClass().getSimpleName() == "MainActivity") {
-                            listOfTopTenTracks = ((MainActivity) getActivity()).listOfArtistsTopTenTracks;
-                        }
-
-                    }
-                }
-            }
 
         }
     }
@@ -398,11 +378,8 @@ public class PlayerDialogFragment extends DialogFragment{
 
                 e.printStackTrace();
                 Toast.makeText(
-
                         getActivity().getApplicationContext(),
-
                         e.getClass().getName() + " " + e.getMessage(),
-
                         Toast.LENGTH_LONG).show();
             }
         }
